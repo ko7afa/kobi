@@ -232,7 +232,43 @@ body {
   font-weight: 600;
 }
 
+.player-slot.bot-slot {
+  background: rgba(60,52,137,0.3);
+  border: 1px solid rgba(83,74,183,0.4);
+  color: #a89fe8;
+  font-weight: 600;
+}
+
 .player-slot .slot-icon { font-size: 1.5rem; margin-bottom: 4px; }
+
+.start-btn {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #3C3489, #534AB7);
+  color: #EEEDFE;
+  border: none;
+  border-radius: 10px;
+  font-family: 'Tajawal', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(60,52,137,0.4);
+}
+.start-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(60,52,137,0.5); }
+.start-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.bot-notice {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  padding: 6px;
+  background: rgba(60,52,137,0.15);
+  border-radius: 8px;
+  border: 1px solid rgba(83,74,183,0.2);
+}
 
 .whatsapp-btn {
   display: flex; align-items: center; justify-content: center; gap: 10px;
@@ -773,9 +809,15 @@ body {
 
     <div class="players-grid" id="waiting-players"></div>
 
-    <div style="color:var(--text-muted); font-size:0.85rem; margin-bottom:14px; text-align:center;">
+    <div style="color:var(--text-muted); font-size:0.85rem; margin-bottom:12px; text-align:center;">
       <span class="waiting-dots"><span></span><span></span><span></span></span>
-      ننتظر <span id="waiting-count">0</span>/4 لاعبين
+      انضم <span id="waiting-count">1</span>/4 لاعبين
+    </div>
+
+    <!-- زر البدء — يظهر فقط للمضيف -->
+    <div id="host-controls" style="display:none;">
+      <div class="bot-notice" id="bot-notice">🤖 المقاعد الفارغة سيملأها بوتات تلقائياً</div>
+      <button class="start-btn" id="start-btn" onclick="sendStartGame()">▶ ابدأ اللعبة</button>
     </div>
 
     <a id="whatsapp-link" href="#" class="whatsapp-btn" target="_blank">
@@ -958,19 +1000,42 @@ function showWaitingRoom(roomId) {
 
 function updateWaitingRoom(state) {
   if (!state) return;
-  document.getElementById('waiting-count').textContent = state.players.length;
+  const realCount = state.players.filter(p => !p.isBot).length;
+  document.getElementById('waiting-count').textContent = realCount;
   const grid = document.getElementById('waiting-players');
   grid.innerHTML = '';
+
+  // Show real players first, then empty slots
   for (let i = 0; i < 4; i++) {
     const p = state.players[i];
     const slot = document.createElement('div');
-    slot.className = 'player-slot' + (p ? ' filled' : '');
-    if (p) {
-      slot.innerHTML = `<div class="slot-icon">${i === myIndex ? '🙋' : '👤'}</div><div>${p.name}</div>`;
-    } else {
+    if (!p) {
+      slot.className = 'player-slot';
       slot.innerHTML = `<div class="slot-icon">⌛</div><div>ينتظر...</div>`;
+    } else if (p.isBot) {
+      slot.className = 'player-slot bot-slot';
+      slot.innerHTML = `<div class="slot-icon">🤖</div><div>${p.name}</div>`;
+    } else {
+      slot.className = 'player-slot filled';
+      slot.innerHTML = `<div class="slot-icon">${i === myIndex ? '🙋' : '👤'}</div><div>${p.name}${i === myIndex ? ' (أنت)' : ''}</div>`;
     }
     grid.appendChild(slot);
+  }
+
+  // Show host controls only for host (index 0)
+  const hostControls = document.getElementById('host-controls');
+  if (myIndex === 0) {
+    hostControls.style.display = 'block';
+    const missing = 4 - realCount;
+    const notice = document.getElementById('bot-notice');
+    if (missing > 0) {
+      notice.style.display = 'block';
+      notice.textContent = `🤖 ${missing} مقعد فارغ — سيملأه بوتات عند البدء`;
+    } else {
+      notice.style.display = 'none';
+    }
+  } else {
+    hostControls.style.display = 'none';
   }
 }
 
@@ -1233,6 +1298,10 @@ function sendNextTrick() {
 
 function sendNextRound() {
   send({ type: 'nextRound' });
+}
+
+function sendStartGame() {
+  send({ type: 'startGame' });
 }
 
 function showToast(text) {
